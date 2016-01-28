@@ -54,14 +54,19 @@ class Http extends Component {
     /** @var string $pass Client password */
     public $pass = '';
 
+    /** @var string $sender Default sender */
     public $sender = '';
 
+    /** @var string Default quality for sent SMSs */
     public $quality = self::ARUBA_QUALITY_AUTO;
 
+    /** @var string creditTypeCheck Default type for credit check */
     public $creditTypeCheck = self::ARUBA_CREDIT_TYPE_CREDIT;
 
+    /** @var string reportType Default report type */
     public $reportType = self::ARUBA_REPORT_TYPE_QUEUE;
 
+    /** @var string matchPattern Pattern to match Aruba's sms response */
     public $matchPattern = '/(OK|KO) (.*)/';
 
     /**
@@ -116,7 +121,6 @@ class Http extends Component {
                 return ($ret[1]=='OK');
             }
         }
-
         return false;
     }
 
@@ -168,8 +172,6 @@ class Http extends Component {
         }
         $return = $result;
         return true;
-
-
     }
 
     /**
@@ -217,8 +219,6 @@ class Http extends Component {
         return false;
     }
 
-
-
     /**
      * Check if mandatory params are set
      * @param array $params key-based array with parameter=>value to be checked
@@ -242,8 +242,4 @@ class Http extends Component {
         }
         return (count($errors)>0) ? $errors : false;
     }
-
-
-
-
 }
