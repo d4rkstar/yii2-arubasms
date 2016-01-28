@@ -17,6 +17,10 @@
       "homepage": "http://www.brunosalzano.com/"
     }
   ],
+  "require": {
+    "yiisoft/yii2": "*",
+    "linslin/yii2-curl": "*"
+  },
   "autoload": {
     "psr-4": {
       "d4rkstar\\arubasms\\": ""
