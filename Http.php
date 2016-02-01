@@ -158,7 +158,7 @@ class Http extends Component {
 
         $result = $curl->setOption(
             CURLOPT_POSTFIELDS, $post
-        )->post($this->urlCredit);
+        )->post($this->urlBatchStatus);
 
         Yii::info($result);
 
@@ -170,7 +170,7 @@ class Http extends Component {
             }
             return false;
         }
-        $return = $result;
+        $return = [self::parseStatusMessage($result)];
         return true;
     }
 
@@ -241,5 +241,35 @@ class Http extends Component {
             }
         }
         return (count($errors)>0) ? $errors : false;
+    }
+
+    /**
+     * @param array $status
+     * @return SmsStatus[] array of status messages
+     */
+    private static function parseStatusMessage($statusText) {
+        $statuses = [];
+        $statusLines = explode("\n", $statusText);
+        $isFirst = true;
+        foreach($statusLines as $line) {
+            if ($isFirst) {
+                $isFirst = false;
+                continue;
+            }
+            $data = explode(",", $line);
+            if (count($data)==5) {
+                $attrs = [
+                    'id'=>$data[0],
+                    'timestamp'=>$data[1],
+                    'dest'=>$data[2],
+                    'status'=>$data[3],
+                    'status_text'=>$data[4],
+                ];
+                $status = new SmsStatus();
+                $status->attributes=$attrs;
+                $statuses[] = $status;
+            }
+        }
+        return $statuses;
     }
 }
