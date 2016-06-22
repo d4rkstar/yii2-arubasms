@@ -35,6 +35,9 @@ class Http extends Component {
     const ARUBA_REPORT_TYPE_QUEUE = 'queue';
     const ARUBA_REPORT_TYPE_NOTIFY = 'notify';
 
+    const ARUBA_SMS_LENGTH_SINGLE = 160;
+    const ARUBA_SMS_LENGTH_MULTITEXT = 918;
+
     /** @var string $url HTTP URL for single send */
     public $urlSingle = 'http://admin.sms.aruba.it/sms/send.php';
 
@@ -69,20 +72,13 @@ class Http extends Component {
     /** @var string matchPattern Pattern to match Aruba's sms response */
     public $matchPattern = '/(OK|KO) (.*)/';
 
+
     /**
-     * @param array $params [
-     *  'rcpt'=>'',         // recipient in international format +XXYYYZZZZZZZ
-     *  'data'=>'',         // message body (the lenght depends on operation type)
-     *  'sender'=>'',       // message sender (required if no global sender is set)
-     *  'qty'=>'',          // quality (see Http::ARUBA_QUALITY_* const),
-     *  'operation' => '' , // type of message to send (see Http::ARUBA_OPERATION_* const)
-     *  'url' => '',        // URL where the phone should connect to in case of operation WAPPUSH
-     * ]
-     * @param array $return return data
-     * @return boolean
-     *
+     * @param array $params
+     * @param $return
+     * @return array|bool
      */
-    public function sendSingle($params=[], &$return) {
+    protected function prepareSendData($params=[], &$return) {
         $mandatoryParams = ['user','pass', 'rcpt','data','sender','qty'];
         $staticParams = [
             'user'=>$this->user,
@@ -105,13 +101,76 @@ class Http extends Component {
             $return = $errors;
             return false;
         }
+        if(strlen($params['data']) > self::ARUBA_SMS_LENGTH_SINGLE) {
+            $params[self::ARUBA_OPERATION_MULTITEXT] = true;
+            $params['data'] = substr($params['data'], 0, self::ARUBA_SMS_LENGTH_MULTITEXT);
+            //$params['--' . self::ARUBA_OPERATION_MULTITEXT] = true;
+        }
+        return $params;
+    }
 
+    /**
+     * @param array $params [
+     *  'rcpt'=>'',         // recipient in international format +XXYYYZZZZZZZ
+     *  'data'=>'',         // message body (the lenght depends on operation type)
+     *  'sender'=>'',       // message sender (required if no global sender is set)
+     *  'qty'=>'',          // quality (see Http::ARUBA_QUALITY_* const),
+     *  'operation' => '' , // type of message to send (see Http::ARUBA_OPERATION_* const)
+     *  'url' => '',        // URL where the phone should connect to in case of operation WAPPUSH
+     * ]
+     * @param array $return return data
+     * @return boolean
+     *
+     */
+    public function sendSingle($params=[], &$return) {
+        $params = $this->prepareSendData($params, $return);
+        if(!is_scalar($params['rcpt'])) {
+            $errors['rcpt'] = Yii::t('app','Paramter {param} must be a scalar', ['param' => 'rcpt']);
+            return false;
+        }
         $post = http_build_query($params);
         $curl = new Curl();
 
         $result = $curl->setOption(
             CURLOPT_POSTFIELDS, $post
         )->post($this->urlSingle);
+
+        Yii::info($result);
+
+        if (preg_match($this->matchPattern, $result, $ret)) {
+            if (count($ret)==3) {
+                $return = [$ret[2]];
+                return ($ret[1]=='OK');
+            }
+        }
+        return false;
+    }
+
+
+    /**
+     * @param array $params [
+     *  'rcpt'=>'',         // recipients in international format +XXYYYZZZZZZZ (comma separated string or an array)
+     *  'data'=>'',         // message body (the lenght depends on operation type)
+     *  'sender'=>'',       // message sender (required if no global sender is set)
+     *  'qty'=>'',          // quality (see Http::ARUBA_QUALITY_* const),
+     *  'operation' => '' , // type of message to send (see Http::ARUBA_OPERATION_* const)
+     *  'url' => '',        // URL where the phone should connect to in case of operation WAPPUSH
+     * ]
+     * @param array $return return data
+     * @return boolean
+     *
+     */
+    public function sendMultiple($params=[], &$return) {
+        $params = $this->prepareSendData($params, $return);
+        if(is_array($params['rcpt']))
+            $params['rcpt'] = implode(',', $params['rcpt']);
+
+        $post = http_build_query($params);
+        $curl = new Curl();
+
+        $result = $curl->setOption(
+            CURLOPT_POSTFIELDS, $post
+        )->post($this->urlBatch);
 
         Yii::info($result);
 
