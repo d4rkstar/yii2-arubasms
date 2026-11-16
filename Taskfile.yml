@@ -1,0 +1,81 @@
+version: '3'
+
+dotenv: ['.env']
+
+vars:
+  PHP_MIN_VERSION_ID: 80100
+  PHP_LOCAL:
+    sh: >-
+      php -r 'exit(PHP_VERSION_ID >= {{.PHP_MIN_VERSION_ID}} ? 0 : 1);' >/dev/null 2>&1
+      && command -v composer >/dev/null 2>&1
+      && echo yes || echo no
+  PHP_IMAGE: '{{.PHP_IMAGE | default "php:8.4-cli"}}'
+  COMPOSER_IMAGE: '{{.COMPOSER_IMAGE | default "composer:2"}}'
+  DOCKER_RUN: >-
+    docker run --rm
+    -u "$(id -u):$(id -g)"
+    -e COMPOSER_HOME=/tmp/composer
+    -e COMPOSER_ROOT_VERSION=dev-master
+    -v "{{.ROOT_DIR}}":/app
+    -w /app
+  PHP: '{{if eq .PHP_LOCAL "yes"}}php{{else}}{{.DOCKER_RUN}} --entrypoint php {{.PHP_IMAGE}}{{end}}'
+  SH: '{{if eq .PHP_LOCAL "yes"}}sh -c{{else}}{{.DOCKER_RUN}} --entrypoint sh {{.PHP_IMAGE}} -c{{end}}'
+  COMPOSER: >-
+    {{if eq .PHP_LOCAL "yes"}}COMPOSER_ROOT_VERSION=dev-master composer{{else}}{{.DOCKER_RUN}}
+    --entrypoint composer {{.COMPOSER_IMAGE}}{{end}}
+
+tasks:
+  default:
+    cmds:
+      - task --list
+
+  dev:info:
+    desc: Show which PHP runtime is used (local or docker)
+    silent: true
+    cmds:
+      - >-
+        {{if eq .PHP_LOCAL "yes"}}echo "Runtime: local PHP $(php -r 'echo PHP_VERSION;')"{{else}}echo
+        "Runtime: docker (PHP_IMAGE={{.PHP_IMAGE}}, COMPOSER_IMAGE={{.COMPOSER_IMAGE}})"{{end}}
+
+  dev:install:
+    desc: Install composer dependencies
+    cmds:
+      - '{{.COMPOSER}} install --no-interaction --no-progress'
+    sources:
+      - composer.json
+    generates:
+      - vendor/autoload.php
+
+  dev:update:
+    desc: Update composer dependencies
+    cmds:
+      - '{{.COMPOSER}} update --no-interaction --no-progress'
+
+  dev:shell:
+    desc: Open a shell in the PHP container (docker runtime only)
+    interactive: true
+    cmds:
+      - '{{.DOCKER_RUN}} -it --entrypoint sh {{.PHP_IMAGE}}'
+
+  dev:lint:
+    desc: Lint PHP sources (deprecations reported as errors)
+    cmds:
+      - >-
+        {{.SH}}
+        'for f in *.php tests/*.php tests/unit/*.php; do
+        out=$(php -d error_reporting=-1 -d display_errors=1 -l "$f" 2>&1) || { echo "$out"; exit 1; };
+        echo "$out";
+        case "$out" in *Deprecated*) exit 1;; esac;
+        done'
+
+  test:unit:
+    desc: Run unit tests
+    deps: [dev:install]
+    cmds:
+      - '{{.PHP}} vendor/bin/phpunit --testsuite unit {{.CLI_ARGS}}'
+
+  ci:test:
+    desc: CI entrypoint - lint and run all tests
+    cmds:
+      - task: dev:lint
+      - task: test:unit
