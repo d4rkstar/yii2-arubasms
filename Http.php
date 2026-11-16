@@ -78,7 +78,7 @@ class Http extends Component {
      * @param $return
      * @return array|bool
      */
-    protected function prepareSendData($params = [], &$return = null) {
+    protected function prepareSendData($params=[], &$return) {
         $mandatoryParams = ['user','pass', 'rcpt','data','sender','qty'];
         $staticParams = [
             'user'=>$this->user,
@@ -122,17 +122,14 @@ class Http extends Component {
      * @return boolean
      *
      */
-    public function sendSingle($params = [], &$return = null) {
+    public function sendSingle($params=[], &$return) {
         $params = $this->prepareSendData($params, $return);
-        if ($params === false) {
-            return false;
-        }
         if(!is_scalar($params['rcpt'])) {
-            $return = ['rcpt' => Yii::t('app','Paramter {param} must be a scalar', ['param' => 'rcpt'])];
+            $errors['rcpt'] = Yii::t('app','Paramter {param} must be a scalar', ['param' => 'rcpt']);
             return false;
         }
         $post = http_build_query($params);
-        $curl = $this->createCurl();
+        $curl = new Curl();
 
         $result = $curl->setOption(
             CURLOPT_POSTFIELDS, $post
@@ -140,7 +137,7 @@ class Http extends Component {
 
         Yii::info($result);
 
-        if (preg_match($this->matchPattern, (string) $result, $ret)) {
+        if (preg_match($this->matchPattern, $result, $ret)) {
             if (count($ret)==3) {
                 $return = [$ret[2]];
                 return ($ret[1]=='OK');
@@ -163,16 +160,13 @@ class Http extends Component {
      * @return boolean
      *
      */
-    public function sendMultiple($params = [], &$return = null) {
+    public function sendMultiple($params=[], &$return) {
         $params = $this->prepareSendData($params, $return);
-        if ($params === false) {
-            return false;
-        }
         if(is_array($params['rcpt']))
             $params['rcpt'] = implode(',', $params['rcpt']);
 
         $post = http_build_query($params);
-        $curl = $this->createCurl();
+        $curl = new Curl();
 
         $result = $curl->setOption(
             CURLOPT_POSTFIELDS, $post
@@ -180,7 +174,7 @@ class Http extends Component {
 
         Yii::info($result);
 
-        if (preg_match($this->matchPattern, (string) $result, $ret)) {
+        if (preg_match($this->matchPattern, $result, $ret)) {
             if (count($ret)==3) {
                 $return = [$ret[2]];
                 return ($ret[1]=='OK');
@@ -197,7 +191,7 @@ class Http extends Component {
      * @param $return array
      * @return bool
      */
-    public function checkStatus($params = [], &$return = null) {
+    public function checkStatus($params= [], &$return) {
         $mandatoryParams = ['user','pass', 'id','type','schema'];
         $staticParams = [
             'user'=>$this->user,
@@ -219,7 +213,7 @@ class Http extends Component {
         }
 
         $post = http_build_query($params);
-        $curl = $this->createCurl();
+        $curl = new Curl();
 
         $result = $curl->setOption(
             CURLOPT_POSTFIELDS, $post
@@ -227,15 +221,15 @@ class Http extends Component {
 
         Yii::info($result);
 
-        if (substr((string) $result, 0, 2)=='KO') {
-            if (preg_match($this->matchPattern, (string) $result, $ret)) {
+        if (substr($result,0,2)=='KO') {
+            if (preg_match($this->matchPattern, $result, $ret)) {
                 if (count($ret) == 3) {
                     $return = [$ret[2]];
                 }
             }
             return false;
         }
-        $return = [self::parseStatusMessage((string) $result)];
+        $return = [self::parseStatusMessage($result)];
         return true;
     }
 
@@ -246,7 +240,7 @@ class Http extends Component {
      * @param array $return return data
      * @return bool
      */
-    public function checkCredit($params = [], &$return = null) {
+    public function checkCredit($params = [], &$return) {
         $mandatoryParams = ['user','pass'];
         $staticParams = [
             'user'=>$this->user,
@@ -255,8 +249,8 @@ class Http extends Component {
 
         $params = array_merge($params, $staticParams);
 
-        if (!array_key_exists('type', $params) && !empty($this->creditTypeCheck)) {
-            $params['type'] = $this->creditTypeCheck;
+        if (!array_key_exists('type', $params) && !empty($this->type)) {
+            $params['type']=$this->type;
         }
 
         $errors = $this->checkMandatoryParams($params, $mandatoryParams);
@@ -266,7 +260,7 @@ class Http extends Component {
         }
 
         $post = http_build_query($params);
-        $curl = $this->createCurl();
+        $curl = new Curl();
 
         $result = $curl->setOption(
             CURLOPT_POSTFIELDS, $post
@@ -274,7 +268,7 @@ class Http extends Component {
 
         Yii::info($result);
 
-        if (preg_match($this->matchPattern, (string) $result, $ret)) {
+        if (preg_match($this->matchPattern, $result, $ret)) {
             if (count($ret)==3) {
                 $return = [$ret[2]];
                 return ($ret[1]=='OK');
@@ -282,14 +276,6 @@ class Http extends Component {
         }
 
         return false;
-    }
-
-    /**
-     * @return Curl
-     */
-    protected function createCurl()
-    {
-        return new Curl();
     }
 
     /**
